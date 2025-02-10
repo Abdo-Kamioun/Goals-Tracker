@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kamioun Goals Tracker</title>
+    <link rel="icon" href="https://www.kamioun.com/favicon.ico" type="image/x-icon">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 700px;
+            width: 100%;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        .logo {
+            width: 150px;
+            margin-bottom: 20px;
+        }
+        .metric {
+            margin-bottom: 25px;
+        }
+        .metric h2 {
+            color: #3498db;
+            margin-bottom: 10px;
+        }
+        .progress-bar {
+            width: 100%;
+            background-color: #ecf0f1;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress {
+            height: 20px;
+            background-color: #3498db;
+            text-align: center;
+            line-height: 20px;
+            color: white;
+            font-size: 12px;
+        }
+        .countdown {
+            font-size: 18px;
+            color: #e74c3c;
+            margin-bottom: 20px;
+        }
+        .encouragement {
+            font-size: 18px;
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        .password-protection {
+            margin-top: 20px;
+        }
+        .password-protection input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .password-protection button {
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .password-protection button:hover {
+            background-color: #2980b9;
+        }
+        .hidden {
+            display: none;
+        }
+        .last-month {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ccc;
+        }
+        .last-month h2 {
+            color: #2c3e50;
+        }
+        .last-month p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="https://www.kamioun.com/logo.png" alt="Kamioun Logo" class="logo">
+        <h1>Kamioun Goals Tracker</h1>
+        <div class="password-protection">
+            <input type="password" id="password" placeholder="Enter password">
+            <button onclick="checkPassword()">Submit</button>
+        </div>
+        <div id="content" class="hidden">
+            <div class="countdown" id="countdown"></div>
+            <div class="encouragement" id="encouragement"></div>
+            <div class="metric">
+                <h2>GMV (TND)</h2>
+                <p>Goal: 1,500,000 TND</p>
+                <p>Current: <span id="gmv">Loading...</span></p>
+                <p>Remaining: <span id="gmv-remaining">Loading...</span></p>
+                <div class="progress-bar">
+                    <div id="gmv-progress" class="progress" style="width: 0%;"></div>
+                </div>
+            </div>
+            <div class="metric">
+                <h2>Active Customers</h2>
+                <p>Goal: 750</p>
+                <p>Current: <span id="active-customers">Loading...</span></p>
+                <p>Remaining: <span id="customers-remaining">Loading...</span></p>
+                <div class="progress-bar">
+                    <div id="customers-progress" class="progress" style="width: 0%;"></div>
+                </div>
+            </div>
+            <div class="last-month">
+                <h2>Last Month's Overview</h2>
+                <p>GMV: <span id="last-month-gmv">Loading...</span></p>
+                <p>Active Customers: <span id="last-month-customers">Loading...</span></p>
+                <p>How Close to GMV Goal: <span id="last-month-gmv-diff">Loading...</span></p>
+                <p>How Close to Customers Goal: <span id="last-month-customers-diff">Loading...</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script>
+        // Load environment variables
+        const PASSWORD = config.PASSWORD;
+        const SHEET_URL = config.SHEET_URL;
+
+        // Password protection
+        function checkPassword() {
+            const password = document.getElementById('password').value;
+            if (password === PASSWORD) {
+                document.getElementById('content').classList.remove('hidden');
+                document.querySelector('.password-protection').classList.add('hidden');
+                fetchData();
+                setInterval(fetchData, 10000); // Refresh data every 10 seconds
+            } else {
+                alert('Incorrect password. Please try again.');
+            }
+        }
+
+        // Fetch data from Google Sheet
+        async function fetchData() {
+            const response = await fetch(SHEET_URL);
+            const data = await response.text();
+            const rows = data.split('\n');
+
+            // Get current month and previous month
+            const now = new Date();
+            const currentMonth = now.getMonth(); // 0 = January, 1 = February, etc.
+            const currentYear = now.getFullYear();
+            const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1; // Handle January edge case
+            const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+            // Find the column for the current month (e.g., "February 2025" = AG)
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            const currentMonthName = `${monthNames[currentMonth]} ${currentYear}`;
+            const previousMonthName = `${monthNames[previousMonth]} ${previousYear}`;
+
+            // Parse the header row to find the current and previous month columns
+            const headerRow = rows[0].split(',');
+            const currentMonthIndex = headerRow.findIndex(col => col.trim() === currentMonthName);
+            const previousMonthIndex = headerRow.findIndex(col => col.trim() === previousMonthName);
+
+            if (currentMonthIndex === -1 || previousMonthIndex === -1) {
+                alert('Error: Could not find current or previous month in the sheet.');
+                return;
+            }
+
+            // Get GMV (row 2) and Active Customers (row 24) for current and previous months
+            const gmv = parseFloat(rows[1].split(',')[currentMonthIndex].replace(/\s/g, '')); // Remove spaces
+            const activeCustomers = parseInt(rows[23].split(',')[currentMonthIndex].replace(/\s/g, '')); // Remove spaces
+            const lastMonthGmv = parseFloat(rows[1].split(',')[previousMonthIndex].replace(/\s/g, '')); // Remove spaces
+            const lastMonthCustomers = parseInt(rows[23].split(',')[previousMonthIndex].replace(/\s/g, '')); // Remove spaces
+
+            // Update the DOM
+            document.getElementById('gmv').textContent = gmv.toLocaleString();
+            document.getElementById('active-customers').textContent = activeCustomers.toLocaleString();
+            document.getElementById('last-month-gmv').textContent = lastMonthGmv.toLocaleString();
+            document.getElementById('last-month-customers').textContent = lastMonthCustomers.toLocaleString();
+
+            // Calculate remaining amounts
+            const gmvRemaining = Math.max(1500000 - gmv, 0);
+            const customersRemaining = Math.max(750 - activeCustomers, 0);
+
+            document.getElementById('gmv-remaining').textContent = gmvRemaining.toLocaleString();
+            document.getElementById('customers-remaining').textContent = customersRemaining.toLocaleString();
+
+            // Calculate progress
+            const gmvProgress = (gmv / 1500000) * 100;
+            const customersProgress = (activeCustomers / 750) * 100;
+
+            document.getElementById('gmv-progress').style.width = `${gmvProgress}%`;
+            document.getElementById('customers-progress').style.width = `${customersProgress}%`;
+
+            // Update countdown
+            const daysLeft = new Date(currentYear, currentMonth + 1, 0).getDate() - now.getDate();
+            document.getElementById('countdown').textContent = `${daysLeft} days left in ${currentMonthName} 🚀`;
+
+            // Add encouragement message
+            const encouragementMessages = [
+                "Keep pushing! You're doing amazing! 💪",
+                "Every step counts! Let's crush this month! 🔥",
+                "You're closer than you think! Keep going! 🌟",
+                "Believe in the team! We've got this! 🚀",
+                "Stay focused and keep winning! 🏆"
+            ];
+            const randomMessage = encouragementMessages[Math.floor(Math.random() * encouragementMessages.length)];
+            document.getElementById('encouragement').textContent = randomMessage;
+
+            // Last month's overview
+            const lastMonthGmvDiff = Math.max(1500000 - lastMonthGmv, 0);
+            const lastMonthCustomersDiff = Math.max(750 - lastMonthCustomers, 0);
+
+            document.getElementById('last-month-gmv-diff').textContent = `${lastMonthGmvDiff.toLocaleString()} TND away from goal`;
+            document.getElementById('last-month-customers-diff').textContent = `${lastMonthCustomersDiff.toLocaleString()} customers away from goal`;
+        }
+    </script>
+</body>
+</html>
